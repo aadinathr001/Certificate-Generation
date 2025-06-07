@@ -1,4 +1,4 @@
-
+// do =ProperCase(A1) on next column 1st row
 function generateSlideCertificates() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   const data = sheet.getDataRange().getValues();
