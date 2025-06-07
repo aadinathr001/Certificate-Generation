@@ -2,7 +2,7 @@
 function generateSlideCertificates() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   const data = sheet.getDataRange().getValues();
-  const templateId = '1eXZTndVLef4q2hgX569hzpCabYkzFqSY_x5HZCAiP7Y'; // Replace with your Slides template ID
+  const templateId = ' '; // Replace with your Slides template ID
 
   const folder = DriveApp.createFolder('Generated Certificates');
 
