@@ -1,0 +1,46 @@
+
+function generateSlideCertificates() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const data = sheet.getDataRange().getValues();
+  const templateId = '1eXZTndVLef4q2hgX569hzpCabYkzFqSY_x5HZCAiP7Y'; // Replace with your Slides template ID
+
+  const folder = DriveApp.createFolder('Generated Certificates');
+
+  for (let i = 1; i < data.length; i++) {
+    const name = data[i][0];
+    const copy = DriveApp.getFileById(templateId).makeCopy(`${name} - Certificate`, folder);
+    const presentation = SlidesApp.openById(copy.getId());
+
+    presentation.getSlides().forEach(slide => {
+      slide.getShapes().forEach(shape => {
+        if (!shape.getText) return;
+        const textRange = shape.getText();
+        const fullText = textRange.asString();
+
+        if (fullText.includes('{{Name}}')) {
+          const [before, after] = fullText.split('{{Name}}');
+
+          // Clear existing text
+          textRange.clear();
+
+          // Add before text
+          if (before) textRange.appendText(before);
+
+          // Add name and apply styles
+          const namePart = textRange.appendText(name);
+          namePart.getTextStyle()
+            .setFontFamily('Allura')
+            .setFontSize(76)
+            .setBold(false);
+
+          // Add after text
+          if (after) textRange.appendText(after);
+        }
+      });
+    });
+
+    presentation.saveAndClose();
+  }
+
+  SpreadsheetApp.getUi().alert('Certificates with styled names generated!');
+}
