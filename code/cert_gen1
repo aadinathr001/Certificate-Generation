@@ -1,13 +1,20 @@
-// do =ProperCase(A1) on next column 1st row
 function generateSlideCertificates() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   const data = sheet.getDataRange().getValues();
-  const templateId = ' '; // Replace with your Slides template ID
+  const templateId = 'YOUR_SLIDES_TEMPLATE_ID'; // Replace with your actual template ID
 
   const folder = DriveApp.createFolder('Generated Certificates');
+  const headers = data[0]; // First row: column headers like Name, Date, etc.
 
   for (let i = 1; i < data.length; i++) {
-    const name = data[i][0];
+    const row = data[i];
+    const placeholders = {};
+
+    headers.forEach((key, index) => {
+      placeholders[`{{${key}}}`] = row[index];
+    });
+
+    const name = row[0]; // First column is Name
     const copy = DriveApp.getFileById(templateId).makeCopy(`${name} - Certificate`, folder);
     const presentation = SlidesApp.openById(copy.getId());
 
@@ -17,24 +24,40 @@ function generateSlideCertificates() {
         const textRange = shape.getText();
         const fullText = textRange.asString();
 
-        if (fullText.includes('{{Name}}')) {
-          const [before, after] = fullText.split('{{Name}}');
+        let replaced = false;
+        let modifiedText = fullText;
 
-          // Clear existing text
+        // Replace all placeholders
+        Object.keys(placeholders).forEach(placeholder => {
+          if (modifiedText.includes(placeholder)) {
+            modifiedText = modifiedText.replaceAll(placeholder, placeholders[placeholder]);
+            replaced = true;
+          }
+        });
+
+        if (replaced) {
           textRange.clear();
+          const newTextRange = textRange.appendText(modifiedText);
 
-          // Add before text
-          if (before) textRange.appendText(before);
-
-          // Add name and apply styles
-          const namePart = textRange.appendText(name);
-          namePart.getTextStyle()
-            .setFontFamily('Allura')
-            .setFontSize(76)
+          // Apply default style to all text
+          const length = modifiedText.length;
+          newTextRange.getRange(0, length - 1).getTextStyle()
+            .setFontFamily('Arial')
+            .setFontSize(24)
             .setBold(false);
 
-          // Add after text
-          if (after) textRange.appendText(after);
+          // Apply special style to the name
+          const nameValue = placeholders['{{Name}}'];
+          if (nameValue) {
+            const nameStart = modifiedText.indexOf(nameValue);
+            const nameEnd = nameStart + nameValue.length ;
+            if (nameStart >= 0 && nameEnd >= nameStart) {
+              newTextRange.getRange(nameStart, nameEnd).getTextStyle()
+                .setFontFamily('Baskervville SC')
+                .setFontSize(76)
+                .setBold(false);
+            }
+          }
         }
       });
     });
