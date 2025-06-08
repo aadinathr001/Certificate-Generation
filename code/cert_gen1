@@ -1,20 +1,21 @@
 function generateSlideCertificates() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   const data = sheet.getDataRange().getValues();
-  const templateId = 'YOUR_SLIDES_TEMPLATE_ID'; // Replace with your actual template ID
+  const headers = data[0];
+  const templateId = 'TEMPLATE_ID'; // Replace with your actual Slides template ID
 
-  const folder = DriveApp.createFolder('Generated Certificates');
-  const headers = data[0]; // First row: column headers like Name, Date, etc.
+  const folder = DriveApp.createFolder('GENERATED CERTIFICATES');
 
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    const placeholders = {};
 
+    // Create placeholder mapping (e.g., {{Name}}: "Alice", {{Date}}: "June 7")
+    const placeholders = {};
     headers.forEach((key, index) => {
       placeholders[`{{${key}}}`] = row[index];
     });
 
-    const name = row[0]; // First column is Name
+    const name = row[0]; // Assuming first column is Name
     const copy = DriveApp.getFileById(templateId).makeCopy(`${name} - Certificate`, folder);
     const presentation = SlidesApp.openById(copy.getId());
 
@@ -22,48 +23,59 @@ function generateSlideCertificates() {
       slide.getShapes().forEach(shape => {
         if (!shape.getText) return;
         const textRange = shape.getText();
-        const fullText = textRange.asString();
+        const originalText = textRange.asString();
 
+        let modifiedText = originalText;
         let replaced = false;
-        let modifiedText = fullText;
 
-        // Replace all placeholders
-        Object.keys(placeholders).forEach(placeholder => {
+        // Replace all placeholders in this text block
+        for (const [placeholder, value] of Object.entries(placeholders)) {
           if (modifiedText.includes(placeholder)) {
-            modifiedText = modifiedText.replaceAll(placeholder, placeholders[placeholder]);
+            modifiedText = modifiedText.replaceAll(placeholder, value);
             replaced = true;
           }
-        });
+        }
 
         if (replaced) {
-          textRange.clear();
-          const newTextRange = textRange.appendText(modifiedText);
+          textRange.clear(); // Remove all old text + styles
 
-          // Apply default style to all text
+          // Force new text in one go
+          const newTextRange = textRange.appendText(modifiedText);
+          
+          // ⚠️ Wait until text is appended, then apply styles
+
+          // Apply default style to whole string
           const length = modifiedText.length;
           newTextRange.getRange(0, length - 1).getTextStyle()
-            .setFontFamily('Arial')
-            .setFontSize(24)
-            .setBold(false);
+            .setFontFamily('Baskervville SC')
+            .setFontSize(35)
+            .setBold(true);
 
-          // Apply special style to the name
+          // Apply custom style to the name ({{Name}} value)
           const nameValue = placeholders['{{Name}}'];
           if (nameValue) {
             const nameStart = modifiedText.indexOf(nameValue);
-            const nameEnd = nameStart + nameValue.length ;
+            const nameEnd = nameStart + nameValue.length ; // Inclusive range
             if (nameStart >= 0 && nameEnd >= nameStart) {
               newTextRange.getRange(nameStart, nameEnd).getTextStyle()
                 .setFontFamily('Baskervville SC')
-                .setFontSize(76)
-                .setBold(false);
+                .setFontSize(35)
+                .setBold(true);
             }
           }
+
+
+
         }
+
+
+
+        
       });
     });
 
     presentation.saveAndClose();
   }
 
-  SpreadsheetApp.getUi().alert('Certificates with styled names generated!');
+  SpreadsheetApp.getUi().alert('All certificates generated with multiple placeholders!');
 }
