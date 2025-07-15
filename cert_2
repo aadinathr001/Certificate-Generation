@@ -1,0 +1,153 @@
+// Convert string to Title Case
+function toTitleCase(str) {
+  if (typeof str !== 'string' || str.length === 0) return str;
+  return str.toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
+}
+
+// ✅ Main function: Read from Sheet and send certificates
+function generateAndSendCertificatesFromSheet() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Sheet1'); // Change if needed
+  const data = sheet.getDataRange().getValues();
+
+  if (data.length < 2) {
+    console.warn("No data to process.");
+    return;
+  }
+
+  // ✅ Normalize header row
+  const headers = data[0].map(h => h.toString().trim());
+  console.log("Headers found:", headers);
+
+  const nameIndex = headers.findIndex(h => h.toLowerCase() === "name");
+  const emailIndex = headers.findIndex(h => h.toLowerCase() === "email address");
+
+  if (nameIndex === -1 || emailIndex === -1) {
+    throw new Error("Sheet must contain 'Name' and 'Email Address' columns.");
+  }
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const name = row[nameIndex]?.toString().trim();
+    const email = row[emailIndex]?.toString().trim();
+
+    if (!name || !email) {
+      console.warn(`Skipping row ${i + 1}: Missing name or email.`);
+      continue;
+    }
+
+    const record = {
+      "Name": toTitleCase(name),
+      "Email Address": email
+      // ➕ Add more fields here if needed
+    };
+
+    try {
+      const pdfBlob = generateCertificate(record);
+      sendEmailWithAttachment(record, pdfBlob);
+      console.log(`Certificate sent to ${name} <${email}>`);
+    } catch (err) {
+      console.error(`Failed to process row ${i + 1}:`, err);
+    }
+  }
+}
+
+// ✅ Generate certificate from Slides
+function generateCertificate(record) {
+  const TEMPLATE_ID = ' '; // 🔁 Replace with your actual template ID
+  
+  const templateFile = DriveApp.getFileById(TEMPLATE_ID);
+  const tempFile = templateFile.makeCopy();
+  const tempId = tempFile.getId();
+  
+  const presentation = SlidesApp.openById(tempId);
+  const slide = presentation.getSlides()[0];
+
+  // Font styles
+  const fontStyles = {
+    'Name': { 
+      fontFamily: 'Libre Baskerville',//'Great Vibes',//'Playfair Display',//'Times New Roman',//'Caslon #3',//'Cambria',
+      fontSize: 24,
+      bold: false,
+      italic: true,
+      fontColor: '#1f1d1d'
+    },
+    'Default': {
+      fontFamily: 'Baskervville SC',
+      fontSize: 20,
+      fontColor: '#000000'
+    }
+  };
+
+  // Replace placeholders
+  const shapes = slide.getShapes();
+  for (let i = 0; i < shapes.length; i++) {
+    const shape = shapes[i];
+    const text = shape.getText().asString();
+    
+    Object.keys(record).forEach(key => {
+      const placeholder = `{{${key}}}`;
+      if (text.includes(placeholder)) {
+        shape.getText().replaceAllText(placeholder, record[key]);
+        const style = fontStyles[key] || fontStyles['Default'];
+        applyTextStyle(shape, record[key], style);
+      }
+    });
+  }
+
+  presentation.saveAndClose();
+  const pdfBlob = tempFile.getAs('application/pdf');
+  tempFile.setTrashed(true);
+  
+  return pdfBlob;
+}
+
+// ✅ Apply text styling
+function applyTextStyle(shape, searchText, style) {
+  if (!searchText || !style) return;
+  
+  try {
+    const text = shape.getText();
+    const ranges = text.find(searchText);
+    
+    if (ranges && ranges.length > 0) {
+      for (let i = 0; i < ranges.length; i++) {
+        const textStyle = ranges[i].getTextStyle();
+        
+        if (style.fontFamily) textStyle.setFontFamily(style.fontFamily);
+        if (style.fontSize) textStyle.setFontSize(style.fontSize);
+        if (style.bold !== undefined) textStyle.setBold(style.bold);
+        if (style.italic !== undefined) textStyle.setItalic(style.italic);
+        if (style.fontColor) textStyle.setForegroundColor(style.fontColor);
+      }
+    }
+  } catch (e) {
+    console.warn('Error applying text style:', e);
+  }
+}
+
+// ✅ Send email with PDF attachment
+function sendEmailWithAttachment(record, pdfBlob) {
+  if (!record || !pdfBlob) return;
+
+  const email = record['Email Address'];
+  if (!email) throw new Error('No email address found in record');
+
+  const subject = 'Your Certificate of Achievement';
+  const body = `Dear ${record['Name']},\n\nCongratulations! Please find your certificate attached.\n\nBest regards,\nThe Certification Team`;
+
+  try {
+    MailApp.sendEmail({
+      to: email,
+      subject: subject,
+      body: body,
+      attachments: [{
+        fileName: `Certificate_${record['Name'].replace(/[^\w\s]/g, '').replace(/\s+/g, '_')}.pdf`,
+        content: pdfBlob.getBytes(),
+        mimeType: 'application/pdf'
+      }]
+    });
+    console.log(`Email sent to ${email}`);
+  } catch (e) {
+    console.error('Failed to send email:', e);
+  }
+}
